@@ -1,0 +1,56 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+// Apply nitrogen-generated autolinking — adds generated/android/kotlin to sourceSets
+apply from: '../nitrogen/generated/android/ReactNativePressRipple+autolinking.gradle'
+
+android {
+  namespace "com.margelo.nitro.pressripple"
+
+  compileSdk 35
+
+  defaultConfig {
+    minSdk 24
+    targetSdk 35
+
+    externalNativeBuild {
+      cmake {
+        cppFlags "-std=c++20"
+        arguments "-DANDROID_STL=c++_shared"
+        abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+      }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+      version "3.22.1"
+    }
+  }
+
+  buildFeatures {
+    buildConfig true
+    prefab true
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+repositories {
+  mavenCentral()
+  google()
+}
+
+dependencies {
+  implementation "com.facebook.react:react-android"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7"
+  implementation "androidx.annotation:annotation:1.9.1"
+}

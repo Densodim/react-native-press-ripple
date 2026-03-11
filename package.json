@@ -1,0 +1,45 @@
+{
+  "name": "react-native-press-ripple",
+  "version": "1.0.0",
+  "description": "Native Android M3 Material ripple effect built with Nitro Modules. Canvas-based animation runs entirely on the native thread — zero JS-thread overhead.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "author": "milautonomos",
+  "license": "MIT",
+  "keywords": [
+    "react-native",
+    "nitro",
+    "nitro-modules",
+    "ripple",
+    "press",
+    "animation",
+    "android",
+    "kotlin",
+    "native",
+    "canvas",
+    "material",
+    "m3",
+    "new-architecture",
+    "fabric"
+  ],
+  "files": [
+    "src/",
+    "android/src/",
+    "android/build.gradle",
+    "android/CMakeLists.txt",
+    "nitrogen/generated/",
+    "nitro.json"
+  ],
+  "scripts": {
+    "specs": "nitro-codegen",
+    "prepublishOnly": "echo 'Ready to publish'"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-native": ">=0.73.0",
+    "react-native-nitro-modules": ">=0.18.0"
+  },
+  "devDependencies": {
+    "react-native-nitro-modules": "^0.35.0"
+  }
+}

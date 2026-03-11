@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test -d /c/Home/work/modules/react-native-press-ripple/node_modules)",
+      "Bash(test -d /c/Home/work/modules/react-native-press-ripple/nitrogen/generated)",
+      "Bash(npx nitrogen)",
+      "Bash(npm install react-native-nitro-modules --save-dev)"
+    ]
+  }
+}
