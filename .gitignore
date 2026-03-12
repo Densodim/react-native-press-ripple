@@ -3,9 +3,9 @@ node_modules/
 
 # Build outputs
 android/build/
-android/.gradle/
+
 android/.cxx/
-android/app/build/
+
 
 # Nitrogen — generated files are committed (consumers need them at build time)
 # nitrogen/generated/   ← intentionally NOT ignored
