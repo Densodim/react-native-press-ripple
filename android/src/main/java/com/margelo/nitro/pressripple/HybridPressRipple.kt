@@ -3,10 +3,12 @@ package com.margelo.nitro.pressripple
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
+import com.facebook.react.uimanager.UIManagerHelper
 import com.margelo.nitro.NitroModules
 
 /**
@@ -32,6 +34,23 @@ class HybridPressRipple : HybridPressRippleSpec() {
     // The Canvas overlay view — null until attachToView() succeeds
     @Volatile private var rippleView: PressRippleView? = null
 
+    // The host ViewGroup the overlay is attached to — kept to clean up the layout listener
+    private var storedHostView: ViewGroup? = null
+
+    // Syncs the overlay size whenever Fabric lays out the host view.
+    // In Fabric (new arch), React Native calls view.layout(l,t,r,b) directly,
+    // bypassing the Android measure/layout pass. MATCH_PARENT won't work because
+    // Fabric doesn't trigger a layout pass for imperatively-added children.
+    private val overlayLayoutSyncer = View.OnLayoutChangeListener { v, left, top, right, bottom, _, _, _, _ ->
+        val overlay = rippleView ?: return@OnLayoutChangeListener
+        val w = right - left
+        val h = bottom - top
+        if (overlay.width != w || overlay.height != h) {
+            Log.d(TAG, "layout sync: overlay resized to ${w}x${h}")
+            overlay.layout(0, 0, w, h)
+        }
+    }
+
     // ── Props ─────────────────────────────────────────────────────────────────
 
     override var color: String = "#40000000"
@@ -54,34 +73,72 @@ class HybridPressRipple : HybridPressRippleSpec() {
      * Find the native view by React tag, create a PressRippleView overlay,
      * and add it as the topmost child so it draws above the Pressable's content.
      *
-     * React Native sets each view's Android ID equal to its React tag, so
-     * decorView.findViewById(reactTag) reliably returns the correct view.
+     * Uses UIManagerHelper.getUIManagerForReactTag + resolveView — the correct
+     * cross-architecture API that works in both Paper and Fabric (new arch).
      */
     override fun attachToView(hostViewTag: Double) {
+        Log.d(TAG, "attachToView called with tag=$hostViewTag")
         mainHandler.post {
-            val context = NitroModules.applicationContext ?: return@post
+            val context = NitroModules.applicationContext
+            if (context == null) {
+                Log.e(TAG, "attachToView FAILED: applicationContext is null")
+                return@post
+            }
             val tag = hostViewTag.toInt()
 
-            // Walk up from the window's decor view to find the host
-            val activity = context.currentActivity ?: return@post
-            val decorView = activity.window.decorView as? ViewGroup ?: return@post
-            val hostView = decorView.findViewById<View>(tag) as? ViewGroup ?: return@post
+            val uiManager = UIManagerHelper.getUIManagerForReactTag(context, tag)
+            if (uiManager == null) {
+                Log.e(TAG, "attachToView FAILED: UIManager not found for tag=$tag")
+                return@post
+            }
 
-            // Remove stale overlay if reattaching
+            val rawView = try {
+                uiManager.resolveView(tag)
+            } catch (e: Exception) {
+                Log.e(TAG, "attachToView FAILED: resolveView threw for tag=$tag: ${e.message}")
+                null
+            }
+
+            if (rawView == null) {
+                Log.e(TAG, "attachToView FAILED: view not found for tag=$tag")
+                return@post
+            }
+
+            val hostView = rawView as? ViewGroup
+            if (hostView == null) {
+                Log.e(TAG, "attachToView FAILED: view (${rawView::class.simpleName}) is NOT a ViewGroup for tag=$tag")
+                return@post
+            }
+
+            Log.d(TAG, "attachToView SUCCESS: found ${hostView::class.simpleName} (${hostView.width}x${hostView.height}) for tag=$tag")
+
+            // Remove stale overlay and listener from the previous host, if any
+            storedHostView?.removeOnLayoutChangeListener(overlayLayoutSyncer)
             rippleView?.let { old -> (old.parent as? ViewGroup)?.removeView(old) }
 
             val overlay = PressRippleView(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                // Apply current config
                 setRippleColor(parseColor(this@HybridPressRipple.color))
                 setBorderRadius(this@HybridPressRipple.borderRadius.toInt())
             }
 
-            hostView.addView(overlay) // added last → renders on top of content
+            // Keep a reference so detachFromView() can remove the listener
+            storedHostView = hostView
+
+            // Listen for Fabric layout updates so the overlay always matches the host size.
+            // Fabric calls view.layout(l,t,r,b) directly; the overlay won't be measured
+            // or laid out by the Android system since it's not in React's view tree.
+            hostView.addOnLayoutChangeListener(overlayLayoutSyncer)
+
+            hostView.addView(overlay)
             rippleView = overlay
+
+            // If the host is already laid out, size the overlay immediately
+            if (hostView.width > 0 && hostView.height > 0) {
+                overlay.layout(0, 0, hostView.width, hostView.height)
+                Log.d(TAG, "attachToView: overlay sized immediately to ${hostView.width}x${hostView.height}")
+            }
+
+            Log.d(TAG, "attachToView: overlay added to ${hostView::class.simpleName}")
         }
     }
 
@@ -90,6 +147,8 @@ class HybridPressRipple : HybridPressRippleSpec() {
      */
     override fun detachFromView() {
         mainHandler.post {
+            storedHostView?.removeOnLayoutChangeListener(overlayLayoutSyncer)
+            storedHostView = null
             rippleView?.let { view ->
                 (view.parent as? ViewGroup)?.removeView(view)
             }
@@ -102,14 +161,22 @@ class HybridPressRipple : HybridPressRippleSpec() {
      * JSI call is synchronous; animation dispatches to the UI thread.
      */
     override fun triggerRipple(x: Double, y: Double) {
-        // Capture reference before posting to avoid null after detach
-        val view = rippleView ?: return
+        val view = rippleView
+        if (view == null) {
+            Log.e(TAG, "triggerRipple SKIPPED: rippleView is null (overlay not attached yet)")
+            return
+        }
+        Log.d(TAG, "triggerRipple at ($x, $y), view=${view.width}x${view.height}")
         mainHandler.post {
             view.startRipple(x.toFloat(), y.toFloat())
         }
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
+
+    companion object {
+        private const val TAG = "PressRipple"
+    }
 
     private fun parseColor(colorString: String): Int = try {
         Color.parseColor(colorString)
