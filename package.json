@@ -1,7 +1,7 @@
 {
   "name": "react-native-press-ripple",
   "version": "1.0.0",
-  "description": "Native Android M3 Material ripple effect built with Nitro Modules. Canvas-based animation runs entirely on the native thread — zero JS-thread overhead.",
+  "description": "Native Android M3 Material ripple effect built with Nitro Modules. Canvas-based animation runs entirely on the native thread \u0432\u0402\u201d zero JS-thread overhead.",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "author": "milautonomos",

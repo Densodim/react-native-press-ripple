@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { findNodeHandle, View, type GestureResponderEvent } from 'react-native'
+import { findNodeHandle, Platform, View, type GestureResponderEvent } from 'react-native'
 import { createPressRipple, type PressRipple as PressRippleSpec } from './specs/PressRipple.nitro'
 import type { RippleConfig } from './types'
 
 const DEFAULT_COLOR = '#40000000' // black 25% in #AARRGGBB
 const DEFAULT_BORDER_RADIUS = 0
+
+const IS_ANDROID = Platform.OS === 'android'
+
+// No-op ref and handler for non-Android platforms
+const noop = () => {}
 
 /**
  * Hook that returns onPressIn + hostRef for M3 Material ripple effect.
@@ -13,6 +18,7 @@ const DEFAULT_BORDER_RADIUS = 0
  * - onPressIn: pass to Pressable's onPressIn
  * - No extra view component to render — overlay is managed natively
  * - Zero JS-thread overhead after initial setup
+ * - No-op on non-Android platforms
  *
  * Usage:
  *   const ripple = usePressRipple({ color: '#73ffffff', borderRadius: 8 })
@@ -26,9 +32,9 @@ export const usePressRipple = (config?: RippleConfig) => {
   const borderRadius = config?.borderRadius ?? DEFAULT_BORDER_RADIUS
   const disabled = config?.disabled ?? false
 
-  // Create HybridObject once — stable reference across renders
+  // Create HybridObject once — stable reference across renders (Android only)
   const ripple = useRef<PressRippleSpec | null>(null)
-  if (ripple.current === null) {
+  if (IS_ANDROID && ripple.current === null) {
     const obj = createPressRipple()
     obj.color = color
     obj.borderRadius = borderRadius
@@ -57,6 +63,7 @@ export const usePressRipple = (config?: RippleConfig) => {
    * Pass this as `ref` to your Pressable or wrapping View.
    */
   const hostRef = useCallback((view: View | null) => {
+    if (!IS_ANDROID) return
     if (view) {
       const tag = findNodeHandle(view)
       if (tag != null && ripple.current) {
@@ -69,7 +76,7 @@ export const usePressRipple = (config?: RippleConfig) => {
 
   const onPressIn = useCallback(
     (event: GestureResponderEvent) => {
-      if (disabled) return
+      if (!IS_ANDROID || disabled) return
       const { locationX, locationY } = event.nativeEvent
       ripple.current?.triggerRipple(locationX, locationY)
     },
